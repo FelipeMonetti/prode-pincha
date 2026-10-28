@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prode Pincha</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Pantalla de login (se muestra si no hay sesión) -->
+  <div id="login-screen" class="screen">
+    <div class="login-container">
+      <h1>⚽ Prode Pincha</h1>
+      <p>Predicciones de Estudiantes de La Plata</p>
+      <button id="btn-login" class="btn btn-google">
+        Iniciar sesión con Google
+      </button>
+    </div>
+  </div>
+
+  <!-- App principal (se muestra después del login) -->
+  <div id="app-screen" class="screen hidden">
+    <!-- Header -->
+    <header>
+      <h1>Prode Pincha</h1>
+      <div class="header-right">
+        <span id="player-name"></span>
+        <button id="btn-logout" class="btn btn-small">Salir</button>
+      </div>
+    </header>
+
+    <!-- Navegación -->
+    <nav>
+      <button class="nav-btn active" data-section="matches">Partidos</button>
+      <button class="nav-btn" data-section="standings">Tabla</button>
+    </nav>
+
+    <!-- Contenido -->
+    <main>
+      <section id="section-matches" class="section">
+        <div id="matches-list">
+          <p class="loading">Cargando partidos...</p>
+        </div>
+      </section>
+
+      <section id="section-standings" class="section hidden">
+        <div id="standings-table">
+          <p class="loading">Cargando tabla...</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+/* ============================================
+   PRODE PINCHA - Estilos
+   ============================================ */
+
+/* --- Reset y base --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* --- Pantalla de Login --- */
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 16px;
+  padding: 16px;
+}
+
+.login-container h1 {
+  font-size: 2rem;
+  color: #e63946;
+}
+
+.login-container p {
+  color: #aaa;
+  margin-bottom: 16px;
+}
+
+/* --- Botones --- */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.btn:hover {
+  opacity: 0.85;
+}
+
+.btn-google {
+  background: #fff;
+  color: #333;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  background: #333;
+  color: #e0e0e0;
+}
+
+.btn-primary {
+  background: #e63946;
+  color: #fff;
+}
+
+/* --- Header --- */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: #16213e;
+  border-bottom: 2px solid #e63946;
+}
+
+header h1 {
+  font-size: 1.2rem;
+  color: #e63946;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#player-name {
+  font-weight: 600;
+}
+
+/* --- Navegación --- */
+nav {
+  display: flex;
+  background: #16213e;
+  border-bottom: 1px solid #333;
+}
+
+.nav-btn {
+  flex: 1;
+  padding: 12px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.nav-btn.active {
+  color: #e63946;
+  border-bottom-color: #e63946;
+}
+
+/* --- Contenido principal --- */
+main {
+  padding: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.loading {
+  text-align: center;
+  color: #666;
+  padding: 32px;
+}
+
+/* --- Card de partido --- */
+.match-card {
+  background: #16213e;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.match-card .round {
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.match-card .teams {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.match-card .team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.match-card .team img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.match-card .team span {
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.match-card .vs {
+  font-weight: bold;
+  color: #666;
+}
+
+.match-card .score {
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-align: center;
+  color: #e63946;
+}
+
+.match-card .kickoff {
+  font-size: 0.85rem;
+  color: #aaa;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.match-card .elapsed {
+  font-size: 0.9rem;
+  color: #4caf50;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* --- Predicción --- */
+.prediction-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.prediction-form input {
+  width: 50px;
+  padding: 8px;
+  text-align: center;
+  font-size: 1.2rem;
+  background: #0f3460;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.prediction-form .separator {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.prediction-saved {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #4caf50;
+}
+
+.prediction-locked {
+  text-align: center;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #e63946;
+}
+
+/* --- Predicciones de otros --- */
+.others-predictions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #333;
+}
+
+.others-predictions .pred-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
+.others-predictions .pred-row .points {
+  font-weight: bold;
+}
+
+.points-3 { color: #4caf50; }
+.points-1 { color: #ff9800; }
+.points-0 { color: #e63946; }
+
+/* --- Tabla de posiciones --- */
+.standings {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.standings th,
+.standings td {
+  padding: 12px;
+  text-align: left;
+}
+
+.standings th {
+  color: #aaa;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #333;
+}
+
+.standings td {
+  border-bottom: 1px solid #222;
+}
+
+.standings tr:first-child td {
+  color: #e63946;
+  font-weight: bold;
+}
