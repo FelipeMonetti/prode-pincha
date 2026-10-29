@@ -3,7 +3,7 @@
 //
 // Conceptos:
 // - Query: traemos jugadores con todas sus predicciones anidadas
-// - Calculamos stats en el frontend: totales, exactos, aciertos, fallos
+// - Calculamos stats en el frontend: totales, exactos, aciertos, fallos, racha, % acierto
 // - Ordenamos por puntos (mayor a menor)
 
 import { supabase } from './supabase.js';
@@ -11,13 +11,14 @@ import { supabase } from './supabase.js';
 // ─── DATOS ───────────────────────────────────────────────
 
 export async function loadStandings() {
-  // Traer jugadores con sus predicciones (solo las que tienen puntos = partido terminado)
+  // Traer jugadores con sus predicciones + datos del partido (para ordenar por fecha)
   const { data, error } = await supabase
     .from('players')
     .select(`
       name,
       predictions (
-        points
+        points,
+        match:matches ( kickoff )
       )
     `);
 
@@ -37,6 +38,31 @@ export async function loadStandings() {
     const wrong = preds.filter(p => p.points === 0).length;
     const totalPts = preds.reduce((sum, p) => sum + p.points, 0);
 
+    // Porcentaje de acierto (exacto o ganador correcto)
+    const accuracy = played > 0
+      ? Math.round(((exact + correct) / played) * 100)
+      : 0;
+
+    // Racha actual: ordenar por fecha y contar desde el último resultado
+    const sorted = [...preds]
+      .filter(p => p.match?.kickoff)
+      .sort((a, b) => new Date(b.match.kickoff) - new Date(a.match.kickoff));
+
+    let streak = '';
+    if (sorted.length > 0) {
+      const lastResult = sorted[0].points > 0 ? 'W' : 'L'; // W = acertó algo, L = falló
+      let count = 0;
+      for (const p of sorted) {
+        const current = p.points > 0 ? 'W' : 'L';
+        if (current === lastResult) {
+          count++;
+        } else {
+          break;
+        }
+      }
+      streak = `${count}${lastResult}`;
+    }
+
     return {
       name: player.name,
       played,
@@ -44,6 +70,8 @@ export async function loadStandings() {
       correct,
       wrong,
       points: totalPts,
+      accuracy,
+      streak,
     };
   });
 
@@ -73,9 +101,9 @@ export function renderStandings(standings, container) {
         <th>#</th>
         <th>Jugador</th>
         <th>PJ</th>
-        <th>⭐</th>
-        <th>✓</th>
-        <th>✗</th>
+        <th>Exact.</th>
+        <th>Aciert.</th>
+        <th>Fallos</th>
         <th>Pts</th>
       </tr>
     </thead>
@@ -102,4 +130,63 @@ export function renderStandings(standings, container) {
 
   table.appendChild(tbody);
   container.appendChild(table);
+
+  // Stats cards debajo de la tabla
+  if (standings.some(s => s.played > 0)) {
+    container.appendChild(createStatsCards(standings));
+  }
+}
+
+// ─── STATS CARDS ─────────────────────────────────────────
+
+function createStatsCards(standings) {
+  const grid = document.createElement('div');
+  grid.className = 'stats-grid';
+
+  // Mejor racha
+  const bestStreak = [...standings]
+    .filter(s => s.streak)
+    .sort((a, b) => {
+      const aNum = parseInt(a.streak) || 0;
+      const bNum = parseInt(b.streak) || 0;
+      return bNum - aNum;
+    })[0];
+
+  if (bestStreak && bestStreak.streak) {
+    grid.appendChild(statCard('Racha', bestStreak.streak, bestStreak.name));
+  }
+
+  // Mejor % acierto
+  const bestAccuracy = [...standings]
+    .filter(s => s.played > 0)
+    .sort((a, b) => b.accuracy - a.accuracy)[0];
+
+  if (bestAccuracy) {
+    grid.appendChild(statCard('% Acierto', `${bestAccuracy.accuracy}%`, bestAccuracy.name));
+  }
+
+  // Más exactos
+  const mostExact = [...standings].sort((a, b) => b.exact - a.exact)[0];
+  if (mostExact && mostExact.exact > 0) {
+    grid.appendChild(statCard('Exactos', mostExact.exact.toString(), mostExact.name));
+  }
+
+  // Total partidos jugados
+  const totalPlayed = standings.reduce((sum, s) => sum + s.played, 0);
+  if (totalPlayed > 0) {
+    grid.appendChild(statCard('Partidos', totalPlayed.toString(), 'Total jugados'));
+  }
+
+  return grid;
+}
+
+function statCard(label, value, subtitle) {
+  const card = document.createElement('div');
+  card.className = 'stat-card';
+  card.innerHTML = `
+    <div class="stat-label">${label}</div>
+    <div class="stat-value">${value}</div>
+    <div class="stat-player">${subtitle}</div>
+  `;
+  return card;
 }

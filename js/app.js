@@ -1,9 +1,16 @@
 // Punto de entrada de la app
-// Maneja: mostrar login o app, navegación entre secciones, linkeo de jugador
+// Maneja: mostrar login o app, navegación entre secciones, auto-linkeo por email
 import { supabase } from './supabase.js';
 import { loginWithGoogle, logout, getCurrentUser, getCurrentPlayer, onAuthChange } from './auth.js';
 import { loadMatches, renderMatches } from './matches.js';
 import { loadStandings, renderStandings } from './standings.js';
+
+// Mapeo email → jugador (auto-link sin pantalla de selección)
+const EMAIL_TO_PLAYER = {
+  'colopincha6@gmail.com': 'Fefi',
+  'nicolasmonetti706@gmail.com': 'Nico',
+  'fefiti10@gmail.com': 'Papá',
+};
 
 // Referencias al DOM
 const loginScreen = document.getElementById('login-screen');
@@ -36,11 +43,53 @@ navButtons.forEach(btn => {
   });
 });
 
-// --- Mostrar pantalla para elegir jugador ---
-// Se muestra cuando el usuario se logueó pero no está linkeado a ningún player
+// --- Auto-link por email ---
+// Si el usuario se logueó con un email conocido, lo vincula automáticamente
+
+async function autoLinkPlayer(user) {
+  const email = user.email?.toLowerCase();
+  const expectedName = EMAIL_TO_PLAYER[email];
+
+  if (!expectedName) {
+    // Email no reconocido — mostrar selector manual como fallback
+    return null;
+  }
+
+  // Buscar el jugador con ese nombre
+  const { data: player, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('name', expectedName)
+    .single();
+
+  if (error || !player) return null;
+
+  // Si ya está linkeado a este usuario, listo
+  if (player.auth_id === user.id) return player;
+
+  // Si no tiene auth_id, linkearlo
+  if (!player.auth_id) {
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({ auth_id: user.id })
+      .eq('id', player.id);
+
+    if (updateError) {
+      console.error('Error auto-linkeando:', updateError);
+      return null;
+    }
+
+    // Devolver el player actualizado
+    return { ...player, auth_id: user.id };
+  }
+
+  // Si está linkeado a otro usuario... no hacer nada
+  return null;
+}
+
+// --- Mostrar pantalla para elegir jugador (fallback) ---
 
 async function showPickPlayer(user) {
-  // Traer jugadores que todavía no tienen auth_id (no están linkeados)
   const { data: availablePlayers } = await supabase
     .from('players')
     .select('*')
@@ -49,7 +98,7 @@ async function showPickPlayer(user) {
   pickButtons.innerHTML = '';
 
   if (!availablePlayers || availablePlayers.length === 0) {
-    pickButtons.innerHTML = '<p>No hay jugadores disponibles. Todos ya están registrados.</p>';
+    pickButtons.innerHTML = '<p>No hay jugadores disponibles.</p>';
     return;
   }
 
@@ -58,7 +107,6 @@ async function showPickPlayer(user) {
     btn.className = 'btn btn-primary';
     btn.textContent = p.name;
     btn.addEventListener('click', async () => {
-      // Linkear este player con el usuario logueado
       const { error } = await supabase
         .from('players')
         .update({ auth_id: user.id })
@@ -68,8 +116,6 @@ async function showPickPlayer(user) {
         alert('Error al registrarte: ' + error.message);
         return;
       }
-
-      // Recargar la app
       window.location.reload();
     });
     pickButtons.appendChild(btn);
@@ -88,10 +134,10 @@ async function showApp(player) {
   pickScreen.classList.add('hidden');
   appScreen.classList.remove('hidden');
 
-  // Cargar y mostrar partidos
+  // Cargar y mostrar partidos (pasamos player para el form de predicción)
   const matches = await loadMatches();
   const matchesContainer = document.getElementById('matches-list');
-  renderMatches(matches, matchesContainer);
+  renderMatches(matches, matchesContainer, player);
 
   // Cargar y mostrar tabla de posiciones
   const standings = await loadStandings();
@@ -103,13 +149,21 @@ async function showApp(player) {
 
 onAuthChange(async (event, session) => {
   if (session) {
-    const player = await getCurrentPlayer();
+    // Primero intentar auto-link por email
+    const user = await getCurrentUser();
+
+    // Verificar si ya tiene player linkeado
+    let player = await getCurrentPlayer();
+
+    if (!player && user) {
+      // Intentar auto-link
+      player = await autoLinkPlayer(user);
+    }
 
     if (player) {
       showApp(player);
-    } else {
-      // Logueado pero no linkeado a un jugador — mostrar selector
-      const user = await getCurrentUser();
+    } else if (user) {
+      // No se pudo auto-linkear — mostrar selector manual
       showPickPlayer(user);
     }
   } else {

@@ -1,10 +1,12 @@
 // matches.js
 // Trae partidos de Supabase y los renderiza como cards.
+// Incluye formulario de predicción para partidos próximos.
 //
 // Conceptos:
 // - Nested select: traemos partidos + predicciones + nombre de jugador en una sola query
 // - Separamos la lógica de datos (loadMatches) de la de UI (renderMatches)
-// - Cada card muestra: ronda, equipos, resultado, y predicciones de los 3
+// - Cada card muestra: ronda, equipos, resultado, y predicciones
+// - Para partidos futuros: form de predicción con upsert
 
 import { supabase } from './supabase.js';
 
@@ -13,11 +15,13 @@ import { supabase } from './supabase.js';
 export async function loadMatches() {
   // El select anidado hace JOIN automático:
   // matches → predictions → players
+  // Incluimos player_id para identificar la predicción del jugador actual
   const { data, error } = await supabase
     .from('matches')
     .select(`
       *,
       predictions (
+        player_id,
         home_score,
         away_score,
         points,
@@ -33,9 +37,34 @@ export async function loadMatches() {
   return data;
 }
 
+// ─── GUARDAR PREDICCIÓN ─────────────────────────────────
+
+async function savePrediction(playerId, matchId, homeScore, awayScore) {
+  // upsert: si ya existe (player_id + match_id), actualiza; si no, inserta
+  // RLS se encarga de validar que sea tu predicción y que el partido no haya arrancado
+  const { error } = await supabase
+    .from('predictions')
+    .upsert(
+      {
+        player_id: playerId,
+        match_id: matchId,
+        home_score: homeScore,
+        away_score: awayScore,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'player_id,match_id' }
+    );
+
+  if (error) {
+    console.error('Error guardando predicción:', error);
+    return { ok: false, message: error.message };
+  }
+  return { ok: true };
+}
+
 // ─── RENDER ──────────────────────────────────────────────
 
-export function renderMatches(matches, container) {
+export function renderMatches(matches, container, player) {
   container.innerHTML = '';
 
   // Separar próximos y jugados
@@ -55,13 +84,13 @@ export function renderMatches(matches, container) {
   // Sección: Próximos
   if (upcoming.length > 0) {
     container.appendChild(sectionTitle('Próximos partidos'));
-    upcoming.forEach(m => container.appendChild(createMatchCard(m)));
+    upcoming.forEach(m => container.appendChild(createMatchCard(m, player)));
   }
 
   // Sección: Jugados
   if (finished.length > 0) {
     container.appendChild(sectionTitle('Partidos jugados'));
-    finished.forEach(m => container.appendChild(createMatchCard(m)));
+    finished.forEach(m => container.appendChild(createMatchCard(m, player)));
   }
 }
 
@@ -114,7 +143,7 @@ function createCountdown(match) {
 }
 
 // Card de un partido individual
-function createMatchCard(match) {
+function createMatchCard(match, player) {
   const card = document.createElement('div');
   card.className = 'match-card';
 
@@ -131,14 +160,12 @@ function createMatchCard(match) {
   teams.className = 'teams';
 
   if (isFinished) {
-    // Partido terminado: mostrar resultado
     teams.innerHTML = `
       <div class="team"><span>${match.home_team}</span></div>
       <div class="score">${match.home_score} - ${match.away_score}</div>
       <div class="team"><span>${match.away_team}</span></div>
     `;
   } else {
-    // Partido por jugar: mostrar fecha
     teams.innerHTML = `
       <div class="team"><span>${match.home_team}</span></div>
       <div class="vs">vs</div>
@@ -155,12 +182,90 @@ function createMatchCard(match) {
     card.appendChild(kickoff);
   }
 
-  // Predicciones (solo para partidos terminados)
+  // --- PARTIDO PRÓXIMO: formulario de predicción ---
+  if (!isFinished && player) {
+    // Buscar si ya tiene predicción para este partido
+    const myPred = (match.predictions || []).find(p => p.player_id === player.id);
+
+    const form = document.createElement('div');
+    form.className = 'prediction-form';
+
+    const inputHome = document.createElement('input');
+    inputHome.type = 'number';
+    inputHome.min = '0';
+    inputHome.max = '99';
+    inputHome.placeholder = '0';
+    if (myPred) inputHome.value = myPred.home_score;
+
+    const sep = document.createElement('span');
+    sep.className = 'separator';
+    sep.textContent = '-';
+
+    const inputAway = document.createElement('input');
+    inputAway.type = 'number';
+    inputAway.min = '0';
+    inputAway.max = '99';
+    inputAway.placeholder = '0';
+    if (myPred) inputAway.value = myPred.away_score;
+
+    const btnSave = document.createElement('button');
+    btnSave.className = 'btn btn-primary btn-small';
+    btnSave.textContent = myPred ? 'Editar' : 'Guardar';
+
+    form.appendChild(inputHome);
+    form.appendChild(sep);
+    form.appendChild(inputAway);
+    form.appendChild(btnSave);
+    card.appendChild(form);
+
+    // Mensaje de estado debajo del form
+    const status = document.createElement('div');
+    if (myPred) {
+      status.className = 'prediction-saved';
+      status.textContent = `Tu predicción: ${myPred.home_score}-${myPred.away_score} ✓`;
+    }
+    card.appendChild(status);
+
+    // Handler del botón guardar
+    btnSave.addEventListener('click', async () => {
+      const h = parseInt(inputHome.value);
+      const a = parseInt(inputAway.value);
+
+      if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
+        status.className = 'prediction-locked';
+        status.textContent = 'Ingresá un resultado válido';
+        return;
+      }
+
+      btnSave.disabled = true;
+      btnSave.textContent = '...';
+
+      const result = await savePrediction(player.id, match.id, h, a);
+
+      if (result.ok) {
+        status.className = 'prediction-saved';
+        status.textContent = `Tu predicción: ${h}-${a} ✓`;
+        btnSave.textContent = 'Editar';
+      } else {
+        status.className = 'prediction-locked';
+        // Si RLS bloquea, probablemente el partido ya arrancó
+        if (result.message.includes('row-level security')) {
+          status.textContent = 'Predicción bloqueada — el partido ya arrancó';
+        } else {
+          status.textContent = 'Error: ' + result.message;
+        }
+        btnSave.textContent = myPred ? 'Editar' : 'Guardar';
+      }
+
+      btnSave.disabled = false;
+    });
+  }
+
+  // --- PARTIDO TERMINADO: predicciones de todos ---
   if (isFinished && match.predictions && match.predictions.length > 0) {
     const predsDiv = document.createElement('div');
     predsDiv.className = 'others-predictions';
 
-    // Ordenar: primero más puntos
     const sorted = [...match.predictions].sort((a, b) => b.points - a.points);
 
     sorted.forEach(pred => {
