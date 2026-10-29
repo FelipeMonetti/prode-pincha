@@ -135,6 +135,20 @@ main {
   padding: 32px;
 }
 
+/* --- Selección de jugador --- */
+.pick-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.pick-buttons .btn {
+  font-size: 1.1rem;
+  padding: 14px;
+}
+
 /* --- Card de partido --- */
 .match-card {
   background: #16213e;
@@ -287,4 +301,44 @@ main {
 .standings tr:first-child td {
   color: #e63946;
   font-weight: bold;
+}
+
+/* --- Countdown banner --- */
+.countdown-banner {
+  background: linear-gradient(135deg, #e63946, #c62828);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.countdown-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.countdown-teams {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.countdown-time {
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+/* --- Section titles --- */
+.section-title {
+  font-size: 0.85rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 20px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333;
 }
