@@ -117,20 +117,36 @@
       clearLog();
 
       try {
-        // 1. Traer fixtures de API-Football
-        const season = new Date().getFullYear();
-        log(`Consultando API-Football (temporada ${season})...`);
+        // 1. Traer fixtures de API-Football (año actual + anterior, por si la liga cruza años)
+        const year = new Date().getFullYear();
+        const seasons = [year, year - 1];
+        let fixtures = [];
 
-        const res = await fetch(
-          `https://v3.football.api-sports.io/fixtures?team=${TEAM_ID}&season=${season}`,
-          { headers: { 'x-apisports-key': API_KEY } }
-        );
+        for (const season of seasons) {
+          log(`Consultando API-Football (temporada ${season})...`);
 
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const res = await fetch(
+            `https://v3.football.api-sports.io/fixtures?team=${TEAM_ID}&season=${season}`,
+            { headers: { 'x-apisports-key': API_KEY } }
+          );
 
-        const data = await res.json();
-        const fixtures = data.response || [];
-        log(`Encontrados ${fixtures.length} partidos`, 'ok');
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+          const data = await res.json();
+          const found = data.response || [];
+          log(`Temporada ${season}: ${found.length} partidos`, found.length > 0 ? 'ok' : 'info');
+          fixtures = fixtures.concat(found);
+        }
+
+        // Eliminar duplicados por fixture id
+        const seen = new Set();
+        fixtures = fixtures.filter(f => {
+          if (seen.has(f.fixture.id)) return false;
+          seen.add(f.fixture.id);
+          return true;
+        });
+
+        log(`Total: ${fixtures.length} partidos únicos`, 'ok');
 
         // 2. Sync cada partido
         let synced = 0;
