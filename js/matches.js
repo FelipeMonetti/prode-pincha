@@ -94,10 +94,12 @@ function createCountdown(match) {
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
     let timeStr = '';
     if (days > 0) timeStr += `${days}d `;
     if (hours > 0) timeStr += `${hours}h `;
-    timeStr += `${mins}m`;
+    timeStr += `${mins}m ${secs}s`;
 
     div.innerHTML = `<span class="countdown-label">⚽ Próximo partido</span>
       <span class="countdown-teams">${match.home_team} vs ${match.away_team}</span>
@@ -105,8 +107,8 @@ function createCountdown(match) {
   }
 
   update();
-  // Actualizar cada minuto
-  setInterval(update, 60000);
+  // Actualizar cada segundo
+  setInterval(update, 1000);
 
   return div;
 }
