@@ -3,6 +3,7 @@
 import { supabase } from './supabase.js';
 import { loginWithGoogle, logout, getCurrentUser, getCurrentPlayer, onAuthChange } from './auth.js';
 import { loadMatches, renderMatches } from './matches.js';
+import { loadStandings, renderStandings } from './standings.js';
 
 // Referencias al DOM
 const loginScreen = document.getElementById('login-screen');
@@ -91,6 +92,11 @@ async function showApp(player) {
   const matches = await loadMatches();
   const matchesContainer = document.getElementById('matches-list');
   renderMatches(matches, matchesContainer);
+
+  // Cargar y mostrar tabla de posiciones
+  const standings = await loadStandings();
+  const standingsContainer = document.getElementById('standings-table');
+  renderStandings(standings, standingsContainer);
 }
 
 // --- Cambio de sesión ---

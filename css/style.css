@@ -284,21 +284,37 @@ main {
 
 .standings th,
 .standings td {
-  padding: 12px;
-  text-align: left;
+  padding: 10px 8px;
+  text-align: center;
 }
 
 .standings th {
   color: #aaa;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   border-bottom: 1px solid #333;
+  text-transform: uppercase;
 }
 
 .standings td {
   border-bottom: 1px solid #222;
+  font-size: 0.9rem;
 }
 
-.standings tr:first-child td {
+.standings td:nth-child(2) {
+  text-align: left;
+  font-weight: 600;
+}
+
+.standings th:nth-child(2) {
+  text-align: left;
+}
+
+.standings td:last-child {
+  font-weight: bold;
+  color: #e63946;
+}
+
+.standings tbody tr:first-child td {
   color: #e63946;
   font-weight: bold;
 }
