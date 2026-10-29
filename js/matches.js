@@ -159,17 +159,24 @@ function createMatchCard(match, player) {
   const teams = document.createElement('div');
   teams.className = 'teams';
 
+  const homeLogo = match.home_logo
+    ? `<img src="${match.home_logo}" alt="${match.home_team}" loading="lazy">`
+    : '';
+  const awayLogo = match.away_logo
+    ? `<img src="${match.away_logo}" alt="${match.away_team}" loading="lazy">`
+    : '';
+
   if (isFinished) {
     teams.innerHTML = `
-      <div class="team"><span>${match.home_team}</span></div>
+      <div class="team">${homeLogo}<span>${match.home_team}</span></div>
       <div class="score">${match.home_score} - ${match.away_score}</div>
-      <div class="team"><span>${match.away_team}</span></div>
+      <div class="team">${awayLogo}<span>${match.away_team}</span></div>
     `;
   } else {
     teams.innerHTML = `
-      <div class="team"><span>${match.home_team}</span></div>
+      <div class="team">${homeLogo}<span>${match.home_team}</span></div>
       <div class="vs">vs</div>
-      <div class="team"><span>${match.away_team}</span></div>
+      <div class="team">${awayLogo}<span>${match.away_team}</span></div>
     `;
   }
   card.appendChild(teams);

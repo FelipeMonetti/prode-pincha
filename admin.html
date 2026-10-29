@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prode Pincha — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f1923;
+      --card: #1e2d3d;
+      --accent: #e63946;
+      --green: #00c853;
+      --text: #f0f2f5;
+      --muted: #8899a6;
+      --border: rgba(255,255,255,0.08);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    .subtitle { color: var(--muted); margin-bottom: 32px; font-size: 0.9rem; }
+    .btn {
+      padding: 14px 32px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      color: #fff;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-sync { background: var(--accent); margin-bottom: 24px; }
+    .btn-sync:hover { box-shadow: 0 4px 16px rgba(230,57,70,0.3); }
+    #log {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 500px;
+      min-height: 200px;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      max-height: 60vh;
+    }
+    .log-ok { color: var(--green); }
+    .log-err { color: var(--accent); }
+    .log-info { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>⚽ Admin — Sync Partidos</h1>
+  <p class="subtitle">Sincroniza fixtures de Estudiantes desde API-Football</p>
+  <button id="btn-sync" class="btn btn-sync">Sincronizar partidos</button>
+  <div id="log"><span class="log-info">Listo para sincronizar...</span></div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const API_KEY = '2d3f3567400421bb71490930ed367321';
+    const TEAM_ID = 450;
+
+    const supabase = createClient(
+      'https://khyurgitvicuaxbgcejb.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtoeXVyZ2l0dmljdWF4YmdjZWpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyMTA3MTksImV4cCI6MjEwODc4NjcxOX0.7aKULS5_HZPwoX-t79tqwJiSLF2be2mTF_ejpQwo_SE'
+    );
+
+    const logEl = document.getElementById('log');
+    const btn = document.getElementById('btn-sync');
+
+    function log(msg, type = 'info') {
+      const span = document.createElement('span');
+      span.className = `log-${type}`;
+      span.textContent = msg + '\n';
+      logEl.appendChild(span);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function clearLog() {
+      logEl.innerHTML = '';
+    }
+
+    // Mapear estados de API-Football a nuestros estados
+    function mapStatus(apiStatus) {
+      const finished = ['FT', 'AET', 'PEN'];
+      const live = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE'];
+      if (finished.includes(apiStatus)) return 'FT';
+      if (live.includes(apiStatus)) return 'LIVE';
+      return 'NS';
+    }
+
+    // Calcular puntos: 3 = exacto, 1 = acertó ganador/empate, 0 = erró
+    function calcPoints(predHome, predAway, realHome, realAway) {
+      if (predHome === realHome && predAway === realAway) return 3;
+      if (Math.sign(predHome - predAway) === Math.sign(realHome - realAway)) return 1;
+      return 0;
+    }
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Sincronizando...';
+      clearLog();
+
+      try {
+        // 1. Traer fixtures de API-Football
+        const season = new Date().getFullYear();
+        log(`Consultando API-Football (temporada ${season})...`);
+
+        const res = await fetch(
+          `https://v3.football.api-sports.io/fixtures?team=${TEAM_ID}&season=${season}`,
+          { headers: { 'x-apisports-key': API_KEY } }
+        );
+
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+        const data = await res.json();
+        const fixtures = data.response || [];
+        log(`Encontrados ${fixtures.length} partidos`, 'ok');
+
+        // 2. Sync cada partido
+        let synced = 0;
+        let pointsCalculated = 0;
+
+        for (const f of fixtures) {
+          const status = mapStatus(f.fixture.status.short);
+
+          const matchData = {
+            api_fixture_id: f.fixture.id,
+            home_team: f.teams.home.name,
+            away_team: f.teams.away.name,
+            home_logo: f.teams.home.logo,
+            away_logo: f.teams.away.logo,
+            kickoff: f.fixture.date,
+            round: `${f.league.name} — ${f.league.round}`,
+            status,
+          };
+
+          // Si terminó, agregar scores
+          if (status === 'FT') {
+            matchData.home_score = f.goals.home;
+            matchData.away_score = f.goals.away;
+          }
+
+          const { data: match, error } = await supabase
+            .from('matches')
+            .upsert(matchData, { onConflict: 'api_fixture_id' })
+            .select('id')
+            .single();
+
+          if (error) {
+            log(`✗ Error: ${f.teams.home.name} vs ${f.teams.away.name} — ${error.message}`, 'err');
+            continue;
+          }
+
+          synced++;
+
+          // 3. Si terminó, calcular puntos de predicciones sin puntaje
+          if (status === 'FT' && f.goals.home !== null) {
+            const { data: preds } = await supabase
+              .from('predictions')
+              .select('id, home_score, away_score')
+              .eq('match_id', match.id)
+              .is('points', null);
+
+            if (preds && preds.length > 0) {
+              for (const pred of preds) {
+                const points = calcPoints(
+                  pred.home_score, pred.away_score,
+                  f.goals.home, f.goals.away
+                );
+
+                await supabase
+                  .from('predictions')
+                  .update({ points })
+                  .eq('id', pred.id);
+
+                pointsCalculated++;
+              }
+            }
+          }
+        }
+
+        log(`\n--- RESUMEN ---`, 'info');
+        log(`Partidos sincronizados: ${synced}/${fixtures.length}`, 'ok');
+        log(`Predicciones puntuadas: ${pointsCalculated}`, 'ok');
+
+      } catch (err) {
+        log(`Error: ${err.message}`, 'err');
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Sincronizar partidos';
+    });
+  </script>
+</body>
+</html>
