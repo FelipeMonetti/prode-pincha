@@ -65,15 +65,17 @@
 </head>
 <body>
   <h1>⚽ Admin — Sync Partidos</h1>
-  <p class="subtitle">Sincroniza fixtures de Estudiantes desde API-Football</p>
+  <p class="subtitle">Sincroniza fixtures de Estudiantes desde TheSportsDB (gratis)</p>
   <button id="btn-sync" class="btn btn-sync">Sincronizar partidos</button>
   <div id="log"><span class="log-info">Listo para sincronizar...</span></div>
+
 
   <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-    const API_KEY = '2d3f3567400421bb71490930ed367321';
-    const TEAM_ID = 450;
+    // TheSportsDB — API gratuita, key pública 123
+    const TSDB_BASE = 'https://www.thesportsdb.com/api/v1/json/123';
+    const TEAM_ID = 135160; // Estudiantes de La Plata
 
     const supabase = createClient(
       'https://khyurgitvicuaxbgcejb.supabase.co',
@@ -95,15 +97,6 @@
       logEl.innerHTML = '';
     }
 
-    // Mapear estados de API-Football a nuestros estados
-    function mapStatus(apiStatus) {
-      const finished = ['FT', 'AET', 'PEN'];
-      const live = ['1H', '2H', 'HT', 'ET', 'BT', 'P', 'LIVE'];
-      if (finished.includes(apiStatus)) return 'FT';
-      if (live.includes(apiStatus)) return 'LIVE';
-      return 'NS';
-    }
-
     // Calcular puntos: 3 = exacto, 1 = acertó ganador/empate, 0 = erró
     function calcPoints(predHome, predAway, realHome, realAway) {
       if (predHome === realHome && predAway === realAway) return 3;
@@ -117,59 +110,59 @@
       clearLog();
 
       try {
-        // 1. Traer fixtures de API-Football (año actual + anterior, por si la liga cruza años)
-        const year = new Date().getFullYear();
-        const seasons = [year, year - 1];
-        let fixtures = [];
+        let allEvents = [];
 
-        for (const season of seasons) {
-          log(`Consultando API-Football (temporada ${season})...`);
+        // 1. Traer próximos partidos
+        log('Consultando próximos partidos...');
+        const resNext = await fetch(`${TSDB_BASE}/eventsnext.php?id=${TEAM_ID}`);
+        const dataNext = await resNext.json();
+        const nextEvents = dataNext.events || [];
+        log(`Próximos: ${nextEvents.length} partidos`, nextEvents.length > 0 ? 'ok' : 'info');
+        allEvents = allEvents.concat(nextEvents);
 
-          const res = await fetch(
-            `https://v3.football.api-sports.io/fixtures?team=${TEAM_ID}&season=${season}`,
-            { headers: { 'x-apisports-key': API_KEY } }
-          );
+        // 2. Traer últimos resultados
+        log('Consultando últimos resultados...');
+        const resLast = await fetch(`${TSDB_BASE}/eventslast.php?id=${TEAM_ID}`);
+        const dataLast = await resLast.json();
+        const lastEvents = dataLast.results || [];
+        log(`Últimos: ${lastEvents.length} resultados`, lastEvents.length > 0 ? 'ok' : 'info');
+        allEvents = allEvents.concat(lastEvents);
 
-          if (!res.ok) throw new Error(`API error: ${res.status}`);
-
-          const data = await res.json();
-          const found = data.response || [];
-          log(`Temporada ${season}: ${found.length} partidos`, found.length > 0 ? 'ok' : 'info');
-          fixtures = fixtures.concat(found);
-        }
-
-        // Eliminar duplicados por fixture id
+        // Eliminar duplicados por idEvent
         const seen = new Set();
-        fixtures = fixtures.filter(f => {
-          if (seen.has(f.fixture.id)) return false;
-          seen.add(f.fixture.id);
+        allEvents = allEvents.filter(e => {
+          if (seen.has(e.idEvent)) return false;
+          seen.add(e.idEvent);
           return true;
         });
 
-        log(`Total: ${fixtures.length} partidos únicos`, 'ok');
+        log(`Total: ${allEvents.length} partidos únicos`, 'ok');
 
-        // 2. Sync cada partido
+        // 3. Sync cada partido a Supabase
         let synced = 0;
         let pointsCalculated = 0;
 
-        for (const f of fixtures) {
-          const status = mapStatus(f.fixture.status.short);
+        for (const e of allEvents) {
+          const status = e.strStatus === 'FT' ? 'FT'
+                       : (e.strStatus === 'NS' || e.strStatus === 'Not Started') ? 'NS'
+                       : e.strStatus === 'LIVE' ? 'LIVE'
+                       : e.intHomeScore !== null ? 'FT' : 'NS';
 
           const matchData = {
-            api_fixture_id: f.fixture.id,
-            home_team: f.teams.home.name,
-            away_team: f.teams.away.name,
-            home_logo: f.teams.home.logo,
-            away_logo: f.teams.away.logo,
-            kickoff: f.fixture.date,
-            round: `${f.league.name} — ${f.league.round}`,
+            api_fixture_id: parseInt(e.idEvent),
+            home_team: e.strHomeTeam,
+            away_team: e.strAwayTeam,
+            home_logo: e.strHomeTeamBadge || null,
+            away_logo: e.strAwayTeamBadge || null,
+            kickoff: e.strTimestamp,
+            round: `${e.strLeague} — Fecha ${e.intRound}`,
             status,
           };
 
           // Si terminó, agregar scores
-          if (status === 'FT') {
-            matchData.home_score = f.goals.home;
-            matchData.away_score = f.goals.away;
+          if (status === 'FT' && e.intHomeScore !== null) {
+            matchData.home_score = parseInt(e.intHomeScore);
+            matchData.away_score = parseInt(e.intAwayScore);
           }
 
           const { data: match, error } = await supabase
@@ -179,14 +172,17 @@
             .single();
 
           if (error) {
-            log(`✗ Error: ${f.teams.home.name} vs ${f.teams.away.name} — ${error.message}`, 'err');
+            log(`✗ ${e.strHomeTeam} vs ${e.strAwayTeam} — ${error.message}`, 'err');
             continue;
           }
 
           synced++;
 
-          // 3. Si terminó, calcular puntos de predicciones sin puntaje
-          if (status === 'FT' && f.goals.home !== null) {
+          // 4. Si terminó, calcular puntos de predicciones sin puntaje
+          if (status === 'FT' && e.intHomeScore !== null) {
+            const realHome = parseInt(e.intHomeScore);
+            const realAway = parseInt(e.intAwayScore);
+
             const { data: preds } = await supabase
               .from('predictions')
               .select('id, home_score, away_score')
@@ -195,16 +191,8 @@
 
             if (preds && preds.length > 0) {
               for (const pred of preds) {
-                const points = calcPoints(
-                  pred.home_score, pred.away_score,
-                  f.goals.home, f.goals.away
-                );
-
-                await supabase
-                  .from('predictions')
-                  .update({ points })
-                  .eq('id', pred.id);
-
+                const points = calcPoints(pred.home_score, pred.away_score, realHome, realAway);
+                await supabase.from('predictions').update({ points }).eq('id', pred.id);
                 pointsCalculated++;
               }
             }
@@ -212,7 +200,7 @@
         }
 
         log(`\n--- RESUMEN ---`, 'info');
-        log(`Partidos sincronizados: ${synced}/${fixtures.length}`, 'ok');
+        log(`Partidos sincronizados: ${synced}/${allEvents.length}`, 'ok');
         log(`Predicciones puntuadas: ${pointsCalculated}`, 'ok');
 
       } catch (err) {
@@ -221,7 +209,9 @@
 
       btn.disabled = false;
       btn.textContent = 'Sincronizar partidos';
+      loadPendingMatches();
     });
+
   </script>
 </body>
 </html>
