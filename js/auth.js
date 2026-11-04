@@ -1,17 +1,27 @@
 // Autenticación con Google via Supabase Auth
 import { supabase } from './supabase.js';
 
-// Login con Google — abre popup de Google
+// Login con Google — redirige a Google OAuth
 export async function loginWithGoogle() {
-  const { error } = await supabase.auth.signInWithOAuth({
+  console.log('loginWithGoogle() llamado');
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin // Vuelve a la app después del login
+      redirectTo: window.location.origin
     }
   });
+
+  console.log('signInWithOAuth resultado:', JSON.stringify({ data, error }));
+
   if (error) {
     console.error('Error en login:', error.message);
-    alert('Error al iniciar sesión. Intentá de nuevo.');
+    alert('Error al iniciar sesión: ' + error.message);
+  } else if (data?.url) {
+    console.log('Redirigiendo a:', data.url);
+    window.location.href = data.url;
+  } else {
+    console.warn('No hubo error pero tampoco URL de redirección');
   }
 }
 
