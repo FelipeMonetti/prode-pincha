@@ -1,27 +1,17 @@
 // Autenticación con Google via Supabase Auth
 import { supabase } from './supabase.js';
 
-// Login con Google — redirige a Google OAuth
+// Login con Google — abre popup de Google
 export async function loginWithGoogle() {
-  console.log('loginWithGoogle() llamado');
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
+  const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: window.location.origin
     }
   });
-
-  console.log('signInWithOAuth resultado:', JSON.stringify({ data, error }));
-
   if (error) {
     console.error('Error en login:', error.message);
-    alert('Error al iniciar sesión: ' + error.message);
-  } else if (data?.url) {
-    console.log('Redirigiendo a:', data.url);
-    window.location.href = data.url;
-  } else {
-    console.warn('No hubo error pero tampoco URL de redirección');
+    alert('Error al iniciar sesión. Intentá de nuevo.');
   }
 }
 
@@ -33,13 +23,13 @@ export async function logout() {
   }
 }
 
-// Obtener el usuario actual (null si no hay sesión)
+// Obtener el usuario actual
 export async function getCurrentUser() {
   const { data: { user } } = await supabase.auth.getUser();
   return user;
 }
 
-// Obtener el player de la tabla players que corresponde al usuario logueado
+// Obtener el player vinculado al usuario logueado
 export async function getCurrentPlayer() {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -53,8 +43,7 @@ export async function getCurrentPlayer() {
   return player;
 }
 
-// Escuchar cambios de sesión (login/logout)
-// callback recibe (event, session) — event: 'SIGNED_IN', 'SIGNED_OUT', etc.
+// Escuchar cambios de sesión
 export function onAuthChange(callback) {
   supabase.auth.onAuthStateChange(callback);
 }
