@@ -160,25 +160,20 @@ async function showApp(player) {
   renderStandings(standings, standingsContainer);
 }
 
-// --- Cambio de sesión ---
+// --- Resolver sesión (compartido entre init y onAuthChange) ---
 
-onAuthChange(async (event, session) => {
+async function resolveSession(session) {
   if (session) {
-    // Primero intentar auto-link por email
     const user = await getCurrentUser();
-
-    // Verificar si ya tiene player linkeado
     let player = await getCurrentPlayer();
 
     if (!player && user) {
-      // Intentar auto-link
       player = await autoLinkPlayer(user);
     }
 
     if (player) {
       showApp(player);
     } else if (user) {
-      // No se pudo auto-linkear — mostrar selector manual
       showPickPlayer(user);
     }
   } else {
@@ -186,4 +181,22 @@ onAuthChange(async (event, session) => {
     appScreen.classList.add('hidden');
     pickScreen.classList.add('hidden');
   }
+}
+
+// --- Init: chequear sesión existente al cargar ---
+// Esto resuelve el F5 que te desloguea: si ya hay sesión, entra directo
+
+async function init() {
+  const { data: { session } } = await supabase.auth.getSession();
+  await resolveSession(session);
+}
+
+init();
+
+// --- Cambio de sesión (login/logout en vivo) ---
+
+onAuthChange(async (event, session) => {
+  // INITIAL_SESSION se dispara junto con getSession, ignorarlo para no duplicar
+  if (event === 'INITIAL_SESSION') return;
+  await resolveSession(session);
 });
